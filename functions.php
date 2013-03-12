@@ -453,7 +453,6 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 			//Form plugin js object
 			$plugin_script_obj['gform_id'] 	= $form_id; 
 			$plugin_script_obj['images'] 	= plugins_url('images', __FILE__);
-			$plugin_script_obj['wait_text']	= __( 'Uploading files please wait, may take up to 5 min.', 'gforms-youtube-upload' );
 			
 			//Localize plugin js object
 			wp_localize_script( 'prso-gforms-api-upload', 'prso_gforms_api_upload_vars', $plugin_script_obj );
