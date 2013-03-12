@@ -84,6 +84,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//After a form has been submitted succesfully
 		add_action( 'prso_gform_pluploader_processed_uploads', array( $this, 'process_wp_attachments' ), 10, 3 );
 		
+		//Add custom script to gravity forms enqueue
+		add_action( 'gform_enqueue_scripts', array($this, 'gforms_enqueue_scripts'), 10, 2 );
+		
 	}
 	
 	/**
@@ -98,6 +101,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//Filter links to attachments in gforms entry
 		add_filter( 'prso_gform_pluploader_entry_attachment_links', array($this, 'get_video_link'), 10, 3 );
+		
+		//Gravity forms filter for submit button render
+		add_filter( 'gform_submit_button', array($this, 'gforms_submit_button'), 10, 2 );
 		
 	}
 	
@@ -428,4 +434,52 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		return $file_url;
 	}
 	
+	public function gforms_enqueue_scripts( $form, $is_ajax ) {
+		
+		//Init vars
+		$form_id = NULL;
+		$plugin_script_obj = array();
+		
+		if( isset($form['id']) ) {
+			$form_id = 'gform_' . $form['id'];
+		}
+		
+		//Enqueue plugin script for form page
+		if( !is_admin() ) {
+			
+			//Enqueue plugin script
+			wp_enqueue_script( 'prso-gforms-api-upload', plugins_url('js/gforms-api-upload.js', __FILE__) );
+			
+			//Form plugin js object
+			$plugin_script_obj['gform_id'] 	= $form_id; 
+			$plugin_script_obj['images'] 	= plugins_url('images', __FILE__);
+			$plugin_script_obj['wait_text']	= __( 'Uploading files please wait, may take up to 5 min.', 'gforms-youtube-upload' );
+			
+			//Localize plugin js object
+			wp_localize_script( 'prso-gforms-api-upload', 'prso_gforms_api_upload_vars', $plugin_script_obj );
+			
+		}
+		
+	}
+	
+	public function gforms_submit_button( $button, $form ) {
+		
+		//Init vars
+		$plugin_images_folder_url 	= NULL;
+		$loading_html				= NULL;
+		$wait_text					= NULL;
+		
+		//Cache url to plugin images folder
+		$plugin_images_folder_url = plugins_url('images', __FILE__);
+		
+		$wait_text = __( 'Uploading files please wait, may take up to 5 min.', 'gforms-youtube-upload' );
+		
+		//Cache html for submit loading
+		$loading_html = "<div style='display:none;' class='gform-api-uploader'><img src='{$plugin_images_folder_url}/ajax-loader.gif' /><p>{$wait_text}</p></div>";
+		
+		//Append to submit button html
+		$button = $button . $loading_html;
+		
+		return $button;
+	}
 }
