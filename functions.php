@@ -16,7 +16,8 @@
  */
 class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	
-	protected $data = array();
+	protected 	$data 			= array();
+	private		$selected_api 	= 'brightcove_ftp';
 	
 	//*** PRSO PLUGIN FRAMEWORK METHODS - Edit at your own risk (go nuts if you just want to add to them) ***//
 	
@@ -291,14 +292,13 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		if( !empty($validated_attachments) && is_array($validated_attachments) ) {
 			
-			//Include API file for current api being used
-			include_once( $this->plugin_includes . '/inc_youtube_api.php' );
+			//Get an instance of API object
+			$ApiObj = $this->load_selected_api();
 			
-			//Call YouTube API - change this based on the api required
-			$ApiObj = new PrsoGformsYoutubeApi();
-			
-			//Call init_api method to upload videos and return video data, id's ect
-			$uploaded_files = $ApiObj->init_api( $validated_attachments );
+			if( method_exists($ApiObj, 'init_api') ) {
+				//Call init_api method to upload videos and return video data, id's ect
+				$uploaded_files = $ApiObj->init_api( $validated_attachments );
+			}
 			
 		}
 		
@@ -407,22 +407,24 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//Init vars
 		$video_link 	= NULL;
 		$ApiObj			= NULL;
+		$video_id		= NULL;
 		
 		//First check if file_data is an array or an int
 		//If it's an array then this is data added by our video api
 		//so we need to output a link for it
 		if( is_array($file_data) ) {
 			
-			//Include API file for current api being used
-			include_once( $this->plugin_includes . '/inc_youtube_api.php' );
+			//Get and instance of the selected API
+			$ApiObj = $this->load_selected_api();
 			
-			//Call YouTube API - change this based on the api required
-			$ApiObj = new PrsoGformsYoutubeApi();
+			if( isset($file_data['video_id']) ) {
+				$video_id = $file_data['video_id'];
+			}
 			
 			//Look for a video_id and request that the video api class return a link
-			if( isset($file_data['video_id']) ) {
+			if( method_exists($ApiObj, 'get_video_url') ) {
 			
-				$video_link = $ApiObj->get_video_url( $file_data['video_id'] );
+				$video_link = $ApiObj->get_video_url( $video_id );
 				
 				$file_url = esc_url( $video_link );
 				
@@ -432,6 +434,49 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		}
 		
 		return $file_url;
+	}
+	
+	private function load_selected_api() {
+		
+		//Init vars
+		$selected_api	= NULL;
+		$result 		= FALSE;
+		
+		//Cache api selection
+		if( isset($this->selected_api) ) {
+			$selected_api = $this->selected_api;
+		}
+		
+		//Load instance of selected API
+		if( isset($selected_api) ) {
+			
+			//Detect and include api
+			switch( $selected_api ) {
+				case 'youtube':
+					
+					//Include API file for current api being used
+					include_once( $this->plugin_includes . '/inc_youtube_api.php' );
+					
+					//Call YouTube API - change this based on the api required
+					$result = new PrsoGformsYoutubeApi();
+					
+					break;
+				case 'brightcove_ftp':
+					
+					//Include API file for current api being used
+					include_once( $this->plugin_includes . '/inc_brightcove_ftp.php' );
+					
+					//Call YouTube API - change this based on the api required
+					$result = new PrsoGformsBrightCoveFtp();
+					
+					break;
+				default:
+					break;
+			}
+			
+		}
+		
+		return $result;	
 	}
 	
 	public function gforms_enqueue_scripts( $form, $is_ajax ) {
