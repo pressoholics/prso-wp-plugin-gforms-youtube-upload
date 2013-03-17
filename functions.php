@@ -17,7 +17,7 @@
 class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	
 	protected 	$data 			= array();
-	private		$selected_api 	= 'brightcove_ftp';
+	private		$selected_api 	= 'youtube';
 	
 	//*** PRSO PLUGIN FRAMEWORK METHODS - Edit at your own risk (go nuts if you just want to add to them) ***//
 	
@@ -56,7 +56,6 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//*** ADD CUSTOM ACTIONS HERE ***//
 
-		
 	}
 	
 	/**
@@ -68,6 +67,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	* @author	Ben Moody
 	*/
 	public function enqueue_scripts() {
+		
 		
 	}
 	
@@ -83,7 +83,11 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//Hook into gravity forms after submission hook to fire actions
 		//After a form has been submitted succesfully
-		add_action( 'prso_gform_pluploader_processed_uploads', array( $this, 'process_wp_attachments' ), 10, 3 );
+		//add_action( 'prso_gform_pluploader_processed_uploads', array( $this, 'process_wp_attachments' ), 10, 3 );
+		add_action( 'prso_gform_pluploader_processed_uploads', array( $this, 'background_init' ), 10, 3 );
+		
+		//Add wp ajax hook for method to init processing wp attachments
+		add_action( 'wp_ajax_nopriv_prso_gforms_youtube_upload_init', array($this, 'init_attachment_process') );
 		
 		//Add custom script to gravity forms enqueue
 		add_action( 'gform_enqueue_scripts', array($this, 'gforms_enqueue_scripts'), 10, 2 );
@@ -102,7 +106,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//Filter links to attachments in gforms entry
 		add_filter( 'prso_gform_pluploader_entry_attachment_links', array($this, 'get_video_link'), 10, 3 );
-		
+			
 		//Gravity forms filter for submit button render
 		add_filter( 'gform_submit_button', array($this, 'gforms_submit_button'), 10, 2 );
 		
@@ -114,6 +118,81 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	
 	
 	//*** CUSTOM METHODS SPECIFIC TO THIS PLUGIN ***//
+	
+	public function background_init( $wp_attachment_data, $entry, $form ) {
+		
+		//Init vars
+		$shell_exec_path 	= '';
+		$command			= '';
+		$ajax_hook_slug		= '';
+		
+		//Cache path to wp ajax script
+		$wp_ajax_url = home_url() . '/wp-admin/admin-ajax.php';
+		
+		//Cache the slug of our wp ajax hook to run our process
+		$ajax_hook_slug = 'prso_gforms_youtube_upload_init';
+		
+		//** Set Post Vars **//
+		
+		//Set wp ajax action slug
+		$fields['action'] = $ajax_hook_slug;
+		
+		//Serialize wp attachments array
+		$fields['wp_attachment_data'] 	= maybe_serialize($wp_attachment_data);
+		
+		//Set the entry id from gravity forms
+		$fields['entry_id'] 			= $entry['id'];
+		
+		//Set the form id from gravity forms
+		$fields['form_id']				= $entry['form_id'];
+		
+		
+		//** Init curl request - note this is asynchronous **//
+		$ch = curl_init();
+
+		curl_setopt($ch, CURLOPT_URL, $wp_ajax_url);
+		curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 1);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $fields);
+
+		curl_exec($ch);
+		curl_close($ch);
+		
+	}
+	
+	public function init_attachment_process() {
+		
+		//Init vars
+		$wp_attachment_data = array();
+		$entry 				= array();
+		$form 				= array();
+		
+		//Try to increase php max execution time
+		ini_set( 'max_execution_time', 600 );
+		
+		//Try to increase mysql timeout
+		ini_set('mysql.connect_timeout', 600);
+		
+		//Get post vars
+		if( isset($_POST['wp_attachment_data'], $_POST['entry_id'], $_POST['form_id']) ) {
+			
+			//Unserialize wp attachment data array
+			$wp_attachment_data = maybe_unserialize($_POST['wp_attachment_data']);
+			
+			//Cache entry id and form id passed from gravity forms
+			$entry['id']		= $_POST['entry_id'];
+			$entry['form_id']	= $_POST['form_id'];
+			
+			//Set form to empty for now as we don't need any data from gravity forms on this
+			$form 				= array();
+			
+			//Call method to process attachments
+			$this->process_wp_attachments( $wp_attachment_data, $entry, $form );
+			
+		}
+
+		die();
+	}
 	
 	public function process_wp_attachments( $wp_attachment_data, $entry, $form ) {
 		
@@ -132,7 +211,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		$wp_attachment_file_info = array();
 		
-		if( !empty($wp_attachment_data) && !empty($entry) && !empty($form) ) {
+		if( !empty($wp_attachment_data) && !empty($entry) ) {
+			
+			
 			
 			//Cache entry and form data from gravity forms
 			$this->data['gforms_entry'] = $entry;
@@ -308,7 +389,12 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	private function save_video_data( $upload_result ) {
 		
 		//Init vars
-		$original_wp_attachments = array();
+		$original_wp_attachments = array();	
+		
+		@ini_set('log_errors','On');
+		@ini_set('display_errors','Off');
+		@ini_set('error_log', $this->plugin_root . '/php_error.log');
+		error_log( 'save_video_data_call' );
 		
 		if( isset($this->data['attachments']) && !empty($upload_result) ) {
 			
@@ -329,6 +415,11 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 						
 						//Delete the wp attachment for this video
 						wp_delete_attachment( $wp_attachment_id, TRUE );
+						
+						@ini_set('log_errors','On');
+						@ini_set('display_errors','Off');
+						@ini_set('error_log', $this->plugin_root . '/php_error.log');
+						error_log( $wp_attachment_id );
 						
 					}
 					
