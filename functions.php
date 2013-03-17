@@ -89,6 +89,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//Add wp ajax hook for method to init processing wp attachments
 		add_action( 'wp_ajax_nopriv_prso_gforms_youtube_upload_init', array($this, 'init_attachment_process') );
 		
+		add_action( 'wp_ajax_nopriv_prso_gforms_youtube_upload_save_data', array($this, 'save_video_data') );
+		
 		//Add custom script to gravity forms enqueue
 		add_action( 'gform_enqueue_scripts', array($this, 'gforms_enqueue_scripts'), 10, 2 );
 		
@@ -124,10 +126,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//Init vars
 		$shell_exec_path 	= '';
 		$command			= '';
-		$ajax_hook_slug		= '';
-		
-		//Cache path to wp ajax script
-		$wp_ajax_url = home_url() . '/wp-admin/admin-ajax.php';
+		$ajax_hook_slug		= '';		
 		
 		//Cache the slug of our wp ajax hook to run our process
 		$ajax_hook_slug = 'prso_gforms_youtube_upload_init';
@@ -148,12 +147,22 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		
 		//** Init curl request - note this is asynchronous **//
+		$this->init_curl( $fields );
+		
+	}
+	
+	private function init_curl( $post_fields ) {
+		
+		//** Init curl request - note this is asynchronous **//
 		$ch = curl_init();
-
+		
+		//Cache path to wp ajax script
+		$wp_ajax_url = home_url() . '/wp-admin/admin-ajax.php';
+		
 		curl_setopt($ch, CURLOPT_URL, $wp_ajax_url);
 		curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 1);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $fields);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
 
 		curl_exec($ch);
 		curl_close($ch);
@@ -275,7 +284,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 				
 				//Overwrite wp attachment ids with video id's from api
 				//and delete the wp attachments from the server
-				$this->save_video_data( $upload_result ); 
+				//$this->save_video_data( $upload_result ); 
+				$this->background_save_data( $upload_result );
 				
 			}
 			
@@ -385,21 +395,60 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		return $uploaded_files;
 	}
-
-	private function save_video_data( $upload_result ) {
+	
+	private function background_save_data( $upload_result_data ) {
+		
+		//Init vars
+		$ajax_hook_slug		= '';
+		$post_data			= array();
+		
+		//Cache the slug of our wp ajax hook to run our process
+		$ajax_hook_slug = 'prso_gforms_youtube_upload_save_data';
+		
+		//Loop upload result data and create json encoded post data array for each
+		/*
+		foreach( $upload_result_data as $field_id => $video_data ) {
+			foreach( $video_data as $upload_key => $upload_data ) {
+				foreach( $upload_data as $key => $data ) {
+					$upload_result_data[$field_id][$upload_key][$key] =  json_encode($data);
+				}
+			}
+		}*/
+		
+		$postdata['action'] = $ajax_hook_slug;
+		
+		$postdata['wp_attachments'] = maybe_serialize( $this->data['attachments'] );
+		
+		$postdata['upload_result']	= urlencode( json_encode($upload_result_data) );
+		
+		//** Init curl request - note this is asynchronous **//
+		$this->init_curl( $postdata );
+		
+	}
+	
+	public function save_video_data() {
 		
 		//Init vars
 		$original_wp_attachments = array();	
+		
 		
 		@ini_set('log_errors','On');
 		@ini_set('display_errors','Off');
 		@ini_set('error_log', $this->plugin_root . '/php_error.log');
 		error_log( 'save_video_data_call' );
 		
-		if( isset($this->data['attachments']) && !empty($upload_result) ) {
+		//Get post vars
+		$original_wp_attachments = maybe_unserialize( $_POST['wp_attachments'] );
+		
+		$upload_result = json_decode( urldecode(html_entity_decode($_POST['upload_result'])) , TRUE );
+		
+		//error_log( $_POST['upload_result'] );
+		//error_log( $upload_result );
+		
+		if( isset($original_wp_attachments) && !empty($upload_result) ) {
 			
 			//Cache the array of original wp attachment id's
-			$original_wp_attachments = $this->data['attachments'];
+			//$original_wp_attachments = $this->data['attachments'];
 			
 			//Loop each wp attachment in the array and replace value
 			//with one from upload results only where the array key's match
@@ -415,12 +464,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 						
 						//Delete the wp attachment for this video
 						wp_delete_attachment( $wp_attachment_id, TRUE );
-						
-						@ini_set('log_errors','On');
-						@ini_set('display_errors','Off');
-						@ini_set('error_log', $this->plugin_root . '/php_error.log');
 						error_log( $wp_attachment_id );
-						
 					}
 					
 				}
