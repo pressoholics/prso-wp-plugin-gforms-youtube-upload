@@ -421,6 +421,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		$postdata['upload_result']	= urlencode( json_encode($upload_result_data) );
 		
+		$postdata['gforms_entry']	= urlencode( json_encode($this->data['gforms_entry']) );
+
 		//** Init curl request - note this is asynchronous **//
 		$this->init_curl( $postdata );
 		
@@ -435,15 +437,25 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		@ini_set('log_errors','On');
 		@ini_set('display_errors','Off');
 		@ini_set('error_log', $this->plugin_root . '/php_error.log');
-		error_log( 'save_video_data_call' );
+		//error_log( 'save_video_data_call' );
 		
 		//Get post vars
 		$original_wp_attachments = maybe_unserialize( $_POST['wp_attachments'] );
 		
-		$upload_result = json_decode( urldecode(html_entity_decode($_POST['upload_result'])) , TRUE );
+		//Url decode json
+		$upload_result = urldecode( $_POST['upload_result'] );
+		
+		//Json decode uploads array
+		$upload_result = json_decode( $upload_result, TRUE );
+		
+		//Json decode gravity forms entry array
+		$this->data['gforms_entry'] = urldecode( $_POST['gforms_entry'] );
+		$this->data['gforms_entry']	= json_decode( $this->data['gforms_entry'], TRUE );
+		
+		//$upload_result = json_decode( urldecode(html_entity_decode($_POST['upload_result'])) , TRUE );
 		
 		//error_log( $_POST['upload_result'] );
-		//error_log( $upload_result );
+		//error_log(  print_r( $upload_result, TRUE ) );
 		
 		if( isset($original_wp_attachments) && !empty($upload_result) ) {
 			
@@ -471,6 +483,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 				
 			}
 			
+			//error_log( print_r($original_wp_attachments, true) );
+			
 			//Update gravity forms data for this entry
 			$this->update_gforms_entry_meta( $original_wp_attachments );
 			
@@ -486,6 +500,12 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		$lead_details_long_table_name	= NULL;
 		$entry_id 						= NULL;
 		$results						= NULL;
+		
+		@ini_set('log_errors','On');
+		@ini_set('display_errors','Off');
+		@ini_set('error_log', $this->plugin_root . '/php_error.log');
+		
+		error_log( print_r($this->data['gforms_entry'], true) );
 		
 		if( !empty($field_values) && isset($this->data['gforms_entry']['id']) ) {
 			
