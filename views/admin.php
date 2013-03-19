@@ -48,14 +48,14 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
  * 2. 	View Title
  *		Define a title for this view
  *****************************************************************/ 
- 	public $view_title	= 'Prso Plugin Example';
+ 	public $view_title	= 'Gravity Forms API Uploader';
 	
 	
 /******************************************************************
  * 3. 	View Menu Title
  *		Define a title for this view's menu item
  *****************************************************************/ 
- 	public $view_menu_title	= 'Prso Plugin Example';
+ 	public $view_menu_title	= 'Prso GForms Uploader';
  	
 
 /******************************************************************
@@ -152,6 +152,14 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
  		array(
  			'id'	=>	'general_options',
  			'title'	=>	'General Options'
+ 		),
+ 		array(
+ 			'id'	=>	'youtube_account_options',
+ 			'title'	=>	'Youtube Account Options'
+ 		),
+ 		array(
+ 			'id'	=>	'brightcove_account_options',
+ 			'title'	=>	'Brightcove Account Options'
  		)
  	);
  
@@ -186,11 +194,79 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
  	public $page_fields = array(
  		array(
  			'section'	=>	'general_options',
- 			'id'		=>	'input_test_html',
- 			'title'		=>	'Test Input Field',
- 			'desc'		=>	'Description for this field',
+ 			'id'		=>	'api_select',
+ 			'title'		=>	'Selected Service API',
+ 			'desc'		=>	'Choose the service you wish to upload to',
+ 			'type'		=>	'select',
+ 			'default'	=>	'',
+ 			'choices'	=> array(
+ 				'YouTube' 			=> 'youtube',
+ 				'Brightcove FTP'	=> 'brightcove_ftp'
+ 			)
+ 		),
+ 		array(
+ 			'section'	=>	'youtube_account_options',
+ 			'id'		=>	'youtube_api_key_text',
+ 			'title'		=>	'YouTube API Key',
+ 			'desc'		=>	'Your YouTube developers app key',
  			'type'		=>	'text',
- 			'default'	=>	'default value'
+ 			'default'	=>	''
+ 		),
+ 		array(
+ 			'section'	=>	'youtube_account_options',
+ 			'id'		=>	'youtube_username_text',
+ 			'title'		=>	'YouTube Username',
+ 			'desc'		=>	'Your YouTube account username',
+ 			'type'		=>	'text',
+ 			'default'	=>	''
+ 		),
+ 		array(
+ 			'section'	=>	'youtube_account_options',
+ 			'id'		=>	'youtube_password_text',
+ 			'title'		=>	'YouTube Password',
+ 			'desc'		=>	'Your YouTube account password',
+ 			'type'		=>	'text',
+ 			'default'	=>	''
+ 		),
+ 		array(
+ 			'section'	=>	'brightcove_account_options',
+ 			'id'		=>	'bc_server',
+ 			'title'		=>	'FTP Server',
+ 			'desc'		=>	'Your Brigthcove FTP server address',
+ 			'type'		=>	'text',
+ 			'default'	=>	'upload.brightcove.com'
+ 		),
+ 		array(
+ 			'section'	=>	'brightcove_account_options',
+ 			'id'		=>	'bc_username',
+ 			'title'		=>	'FTP Username',
+ 			'desc'		=>	'Your Brigthcove FTP username',
+ 			'type'		=>	'text',
+ 			'default'	=>	''
+ 		),
+ 		array(
+ 			'section'	=>	'brightcove_account_options',
+ 			'id'		=>	'bc_password',
+ 			'title'		=>	'FTP Password',
+ 			'desc'		=>	'Your Brigthcove FTP password',
+ 			'type'		=>	'text',
+ 			'default'	=>	''
+ 		),
+ 		array(
+ 			'section'	=>	'brightcove_account_options',
+ 			'id'		=>	'bc_publisher_id',
+ 			'title'		=>	'Publisher ID',
+ 			'desc'		=>	'Your Brigthcove Publisher ID',
+ 			'type'		=>	'text',
+ 			'default'	=>	''
+ 		),
+ 		array(
+ 			'section'	=>	'brightcove_account_options',
+ 			'id'		=>	'bc_preparer',
+ 			'title'		=>	'Preparer Name',
+ 			'desc'		=>	'Unique name to identify this plugin with Brightcove',
+ 			'type'		=>	'text',
+ 			'default'	=>	''
  		)
  	);
 
@@ -221,11 +297,59 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
  	*
  	**/
  	public $validate_fields = array(
- 		'input_test_html'	=>	array(
- 			'nice_name'	=>	'Test Field',
+ 		'api_select'	=>	array(
+ 			'nice_name'	=>	'Service API',
  			'type'		=>	'text',
- 			'message'	=>	'Invalid Value',
+ 			'message'	=>	'Please select a Serivce API',
  			'empty'		=>	FALSE
+ 		),
+ 		'youtube_api_key_text'	=>	array(
+ 			'nice_name'	=>	'YouTube API Key',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your YouTube API Key',
+ 			'empty'		=>	TRUE
+ 		),
+ 		'youtube_username_text'	=>	array(
+ 			'nice_name'	=>	'YouTube Username',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your YouTube Username',
+ 			'empty'		=>	TRUE
+ 		),
+ 		'youtube_password_text'	=>	array(
+ 			'nice_name'	=>	'YouTube Password',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your YouTube Password',
+ 			'empty'		=>	TRUE
+ 		),
+ 		'bc_server'	=>	array(
+ 			'nice_name'	=>	'Brightcove Server',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your Brightcove Server address',
+ 			'empty'		=>	TRUE
+ 		),
+ 		'bc_username'	=>	array(
+ 			'nice_name'	=>	'Brightcove Username',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your Brightcove Username',
+ 			'empty'		=>	TRUE
+ 		),
+ 		'bc_password'	=>	array(
+ 			'nice_name'	=>	'Brightcove Password',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your Brightcove Password',
+ 			'empty'		=>	TRUE
+ 		),
+ 		'bc_publisher_id'	=>	array(
+ 			'nice_name'	=>	'Brightcove Publisher ID',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your Brightcove Publisher ID',
+ 			'empty'		=>	TRUE
+ 		),
+ 		'bc_preparer'	=>	array(
+ 			'nice_name'	=>	'Brightcove Preparer',
+ 			'type'		=>	'text',
+ 			'message'	=>	'Please enter your Brightcove Preparer',
+ 			'empty'		=>	TRUE
  		)
  	);
 	
@@ -328,7 +452,7 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
 		$this->prso_core_active();
 		
 		//Call method to cache plugin options data in plugin's $data array - see app_controller.php
-		$this->get_options( parent::plugin_slug );
+		$this->get_options( $this->view_slug );
 		
 		//Add main parent page for theme admin section
  		add_action( 'admin_menu', array($this, 'register_plugin_menu') );
@@ -438,7 +562,8 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
 			'screen_icon' 	=> $this->view_icon,
 			'view_slug'		=> $this->view_slug,
 			'view_title'	=> $this->view_title,
-			'submit_title'	=> $this->submit_title
+			'submit_title'	=> $this->submit_title,
+			'sections'		=> $this->page_sections
 		);
 		
 		//Add custom html before the option page form - see $this->render_before_options_form
@@ -472,7 +597,7 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
 		//Init vars
 		$field_data 	= array();
 		$section_slug	= NULL;
-		
+
 		//Register santization callback
 		register_setting(
 			$this->view_slug,
