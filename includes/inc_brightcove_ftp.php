@@ -16,11 +16,11 @@
  */
 class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 	
-	private $ftp_server 		= 'upload.brightcove.com';
-	private $username			= 'tak.h.wan@gsk.com';
-	private	$password			= 'Winter!1';
-	private $publisher_id		= '933063477001';
-	private	$preparer			= 'GlaxoSmithKline';
+	private $ftp_server 		= NULL;
+	private $username			= NULL;
+	private	$password			= NULL;
+	private $publisher_id		= NULL;
+	private	$preparer			= NULL;
 	private	$manifext_filename	= 'myManifest';
 	private $ftp_conn_id		= '';
 	private $callback_url		= '';
@@ -49,37 +49,57 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 		$ftp_conn_id		= NULL;
 		$upload_results		= array();
 		$upload_manifest	= FALSE;
+		$plugin_options		= array();
 		
-		if( !empty($validated_attachments) && is_array($validated_attachments) ) {
+		//First try and get the plugin options
+		if( isset($this->plugin_options_slug) ) {
+			$plugin_options = get_option( $this->plugin_options_slug );
+		}
+		
+		$this->plugin_error_log( $plugin_options );
+		
+		if( $plugin_options !== FALSE && isset($plugin_options['bc_server'], $plugin_options['bc_username'], $plugin_options['bc_password'], $plugin_options['bc_publisher_id'], $plugin_options['bc_preparer']) ) {
 			
-			//Write xml manifest file for all validate video files
-			$manifest_path = $this->generate_manifest_xml( $validated_attachments );
+			//Cache options values
+			$this->ftp_server		=	esc_attr( $plugin_options['bc_server'] );
+			$this->username			=	esc_attr( $plugin_options['bc_username'] );
+			$this->password			=	esc_attr( $plugin_options['bc_password'] );
+			$this->publisher_id		=	esc_attr( $plugin_options['bc_publisher_id'] );
+			$this->preparer			=	esc_attr( $plugin_options['bc_preparer'] );
 			
-			//Init ftp connection
-			if( $manifest_path !== FALSE && file_exists($manifest_path) ) {
+			//Init process
+			if( !empty($validated_attachments) && is_array($validated_attachments) ) {
+			
+				//Write xml manifest file for all validate video files
+				$manifest_path = $this->generate_manifest_xml( $validated_attachments );
 				
-				$ftp_conn_id = $this->init_ftp_connection();
-				
-				//Error check connection
-				if( $ftp_conn_id !== FALSE ) {
+				//Init ftp connection
+				if( $manifest_path !== FALSE && file_exists($manifest_path) ) {
 					
-					//cache connection id
-					$this->ftp_conn_id = $ftp_conn_id;
+					$ftp_conn_id = $this->init_ftp_connection();
 					
-					//Upload video files
-					$upload_results = $this->upload_video_files( $validated_attachments );
-					
-					//Upload manifest xml file
-					if( !empty($upload_results) && is_array($upload_results) ) {
-						$upload_manifest = $this->upload_manifest_file( $manifest_path );
-					}
-					
-					//Final error check, make sure manifest uploaded ok
-					if( $upload_manifest === FALSE ) {
+					//Error check connection
+					if( $ftp_conn_id !== FALSE ) {
 						
-						//Empty upload results array to ensure a redundant copy of
-						//video files remain in wp media library as backup
-						$upload_results = array();
+						//cache connection id
+						$this->ftp_conn_id = $ftp_conn_id;
+						
+						//Upload video files
+						$upload_results = $this->upload_video_files( $validated_attachments );
+						
+						//Upload manifest xml file
+						if( !empty($upload_results) && is_array($upload_results) ) {
+							$upload_manifest = $this->upload_manifest_file( $manifest_path );
+						}
+						
+						//Final error check, make sure manifest uploaded ok
+						if( $upload_manifest === FALSE ) {
+							
+							//Empty upload results array to ensure a redundant copy of
+							//video files remain in wp media library as backup
+							$upload_results = array();
+							
+						}
 						
 					}
 					
@@ -87,7 +107,10 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 				
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Brightcove FTP:: Missing options for this api.' );
 		}
+		
 		
 		//Return the array of succefully uploaded files to be updated in gforms
 		//meta table and deleted from wp media library
@@ -193,7 +216,7 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 							$filename = $file_path_info['filename'];
 							
 							//Cache ref_id - format:: podders_{$wp_attachement_id}
-							$ref_id = 'podders_' . $upload_data['wp_attachement_id'];
+							$ref_id = 'podders_' . rand(0, 1000) . '_' . $upload_data['wp_attachement_id'];
 							
 							//Add Asset element to manifest for this file
 							$file_asset 		= $doc->createElement( 'asset' );
@@ -237,6 +260,8 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 			if( ($result = $doc->save( $save_path )) !== FALSE ) {
 				//Return full path to manifest xml file
 				$result = $save_path;	
+			} else {
+				$this->plugin_error_log( 'Brightcove FTP:: Error saving Manifest xml file.' );
 			}
 			
 		}
@@ -258,16 +283,25 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 			//Check for error
 			if( $conn_id !== FALSE ) {
 				
+				$this->plugin_error_log( $conn_id );
+				$this->plugin_error_log( $this->username );
+				$this->plugin_error_log( $this->password );
+				
 				//Send access params
 				$login_result = ftp_login( $conn_id, $this->username, $this->password );
 				
 				//Detect result - allow return of conn_id if succesfull
 				if( $login_result === FALSE ) {
 					$conn_id = FALSE;
+					$this->plugin_error_log( 'Brightcove FTP:: Error in ftp_login.' );
 				}
 				
+			} else {
+				$this->plugin_error_log( 'Brightcove FTP:: Error in ftp_connect.' );
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Brightcove FTP:: Missing FTP credentials.' );
 		}
 		
 		return $conn_id;
@@ -343,8 +377,12 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 				//Perform file upload
 				$result = ftp_put( $this->ftp_conn_id, $remote_file, $local_file_path, FTP_ASCII );
 				
+			} else {
+				$this->plugin_error_log( 'Brightcove FTP:: Error getting file basename.' );
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Brightcove FTP:: Can\'t find file to upload.' );
 		}
 		
 		return $result;
