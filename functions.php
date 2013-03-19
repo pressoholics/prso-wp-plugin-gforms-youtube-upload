@@ -17,7 +17,7 @@
 class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	
 	protected 	$data 			= array();
-	private		$selected_api 	= 'youtube';
+	private		$selected_api 	= 'brightcove_ftp';
 	
 	//*** PRSO PLUGIN FRAMEWORK METHODS - Edit at your own risk (go nuts if you just want to add to them) ***//
 	
@@ -139,12 +139,12 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//Serialize wp attachments array
 		$fields['wp_attachment_data'] 	= maybe_serialize($wp_attachment_data);
 		
-		//Set the entry id from gravity forms
-		$fields['entry_id'] 			= $entry['id'];
+		//Set the entry array from gravity forms
+		$fields['entry'] = urlencode( json_encode($entry) );
 		
-		//Set the form id from gravity forms
-		$fields['form_id']				= $entry['form_id'];
 		
+		//Set form array from gravity forms
+		$fields['form'] = urlencode( json_encode($form) );
 		
 		//** Init curl request - note this is asynchronous **//
 		$this->init_curl( $fields );
@@ -183,17 +183,18 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		ini_set('mysql.connect_timeout', 600);
 		
 		//Get post vars
-		if( isset($_POST['wp_attachment_data'], $_POST['entry_id'], $_POST['form_id']) ) {
+		if( isset($_POST['wp_attachment_data'], $_POST['entry'], $_POST['form']) ) {
 			
 			//Unserialize wp attachment data array
 			$wp_attachment_data = maybe_unserialize($_POST['wp_attachment_data']);
 			
 			//Cache entry id and form id passed from gravity forms
-			$entry['id']		= $_POST['entry_id'];
-			$entry['form_id']	= $_POST['form_id'];
+			$entry	=  urldecode( $_POST['entry'] );
+			$entry	=  json_decode( $entry, TRUE );
 			
-			//Set form to empty for now as we don't need any data from gravity forms on this
-			$form 				= array();
+			//Decode form array from gravity forms
+			$form	=  urldecode( $_POST['form'] );
+			$form	=  json_decode( $form, TRUE );
 			
 			//Call method to process attachments
 			$this->process_wp_attachments( $wp_attachment_data, $entry, $form );
@@ -405,24 +406,21 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//Cache the slug of our wp ajax hook to run our process
 		$ajax_hook_slug = 'prso_gforms_youtube_upload_save_data';
 		
-		//Loop upload result data and create json encoded post data array for each
-		/*
-		foreach( $upload_result_data as $field_id => $video_data ) {
-			foreach( $video_data as $upload_key => $upload_data ) {
-				foreach( $upload_data as $key => $data ) {
-					$upload_result_data[$field_id][$upload_key][$key] =  json_encode($data);
-				}
-			}
-		}*/
-		
+		//Cache wp ajax action slug in post data
 		$postdata['action'] = $ajax_hook_slug;
 		
+		//Cache wp attachmetns arrau in post data
 		$postdata['wp_attachments'] = maybe_serialize( $this->data['attachments'] );
 		
+		//Json encode and cache uploaded video data array into post data
 		$postdata['upload_result']	= urlencode( json_encode($upload_result_data) );
 		
+		//Json encode and cache gravity forms entry array into post
 		$postdata['gforms_entry']	= urlencode( json_encode($this->data['gforms_entry']) );
 
+		//Json encode and cache gravity forms Form array into post
+		$postdata['gforms_form']	= urlencode( json_encode($this->data['gforms_form']) );
+		
 		//** Init curl request - note this is asynchronous **//
 		$this->init_curl( $postdata );
 		
@@ -432,12 +430,6 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//Init vars
 		$original_wp_attachments = array();	
-		
-		
-		@ini_set('log_errors','On');
-		@ini_set('display_errors','Off');
-		@ini_set('error_log', $this->plugin_root . '/php_error.log');
-		//error_log( 'save_video_data_call' );
 		
 		//Get post vars
 		$original_wp_attachments = maybe_unserialize( $_POST['wp_attachments'] );
@@ -452,10 +444,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		$this->data['gforms_entry'] = urldecode( $_POST['gforms_entry'] );
 		$this->data['gforms_entry']	= json_decode( $this->data['gforms_entry'], TRUE );
 		
-		//$upload_result = json_decode( urldecode(html_entity_decode($_POST['upload_result'])) , TRUE );
-		
-		//error_log( $_POST['upload_result'] );
-		//error_log(  print_r( $upload_result, TRUE ) );
+		//Json decode gravity forms Form array
+		$this->data['gforms_form'] 	= urldecode( $_POST['gforms_form'] );
+		$this->data['gforms_form']	= json_decode( $this->data['gforms_form'], TRUE );
 		
 		if( isset($original_wp_attachments) && !empty($upload_result) ) {
 			
@@ -476,14 +467,12 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 						
 						//Delete the wp attachment for this video
 						wp_delete_attachment( $wp_attachment_id, TRUE );
-						error_log( $wp_attachment_id );
+						
 					}
 					
 				}
 				
 			}
-			
-			//error_log( print_r($original_wp_attachments, true) );
 			
 			//Update gravity forms data for this entry
 			$this->update_gforms_entry_meta( $original_wp_attachments );
@@ -501,11 +490,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		$entry_id 						= NULL;
 		$results						= NULL;
 		
-		@ini_set('log_errors','On');
-		@ini_set('display_errors','Off');
-		@ini_set('error_log', $this->plugin_root . '/php_error.log');
 		
-		error_log( print_r($this->data['gforms_entry'], true) );
 		
 		if( !empty($field_values) && isset($this->data['gforms_entry']['id']) ) {
 			
@@ -680,5 +665,19 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		$button = $button . $loading_html;
 		
 		return $button;
+	}
+	
+	private function plugin_error_log( $var ) {
+		
+		@ini_set('log_errors','On');
+		@ini_set('display_errors','Off');
+		@ini_set('error_log', $this->plugin_root . '/php_error.log');
+		
+		if( !is_string($var) ) {
+			error_log( print_r($var, true) );
+		} else {
+			error_log( $var );
+		}
+		
 	}
 }
