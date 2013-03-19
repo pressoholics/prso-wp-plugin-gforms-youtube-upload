@@ -50,24 +50,39 @@ class PrsoGformsYoutubeApi extends PrsoGformsYoutubeFunctions {
 		
 		//Init vars
 		$returned_video_data = array();
+		$plugin_options		= array();
 		
-		//Cache path to zend library
-		$this->data['zend_library_path'] = $this->plugin_includes . '/Zend';
+		//First try and get the plugin options
+		if( isset($this->plugin_options_slug) ) {
+			$plugin_options = get_option( $this->plugin_options_slug );
+		}
 		
-		set_include_path($this->plugin_includes . PATH_SEPARATOR . get_include_path());
-		
-		//Setup YouTube account details
-		$this->data['http_client_args'] = array(
-			'username'	=>	'ben@benjaminmoody.com',
-			'password'	=>	'uuxcxusrvsdhbubl'
-		);
-		
-		//Cache developer key
-		$this->data['developer_key'] = 'AI39si4rrk8OJFq745m2kpoFB5E7_7MDdLXo3LSEV4jX_YV4DjT4BcZmwr0X-nS0gnCuTjYYk5Ks6co1o7QRJ0bU6gmXZWqTSQ';
-		
-		//Initialize zend youtube api object
-		if( !isset($this->data['YouTubeClass']) ) {
-			$this->init_youtube_api_obj();
+		//Confirm required options are set
+		if( $plugin_options !== FALSE && isset($plugin_options['youtube_api_key_text'], $plugin_options['youtube_username_text'], $plugin_options['youtube_password_text']) ) {
+			
+			//Cache path to zend library
+			$this->data['zend_library_path'] = $this->plugin_includes . '/Zend';
+			
+			set_include_path($this->plugin_includes . PATH_SEPARATOR . get_include_path());
+			
+			//Setup YouTube account details
+			$this->data['http_client_args'] = array(
+				'username'	=>	esc_attr( $plugin_options['youtube_username_text'] ),
+				'password'	=>	esc_attr( $plugin_options['youtube_password_text'] )
+			);
+			
+			//Cache developer key
+			$this->data['developer_key'] = esc_attr( $plugin_options['youtube_api_key_text'] );
+			
+			//Initialize zend youtube api object
+			if( !isset($this->data['YouTubeClass']) ) {
+				$this->init_youtube_api_obj();
+			}
+			
+		} else {
+			
+			$this->plugin_error_log( 'YouTube API:: Missing api key, username, password, or all of them.' );
+			
 		}
 		
 	}
@@ -127,6 +142,8 @@ class PrsoGformsYoutubeApi extends PrsoGformsYoutubeFunctions {
 			//Cache instance of authenticated class
 			$this->data['YouTubeClass'] = new Zend_Gdata_YouTube( $httpClient, $applicationId, $clientId, $this->data['developer_key'] );
 			
+		} else {
+			$this->plugin_error_log( 'YouTube API:: Problem loading YouTube Zend Library.' );
 		}
 		
 	}
@@ -203,9 +220,17 @@ class PrsoGformsYoutubeApi extends PrsoGformsYoutubeFunctions {
 			  
 			  
 			} catch (Zend_Gdata_App_HttpException $httpException) {
+			
 			  	$output = $httpException->getRawResponseBody();
+			  	
+			  	$this->plugin_error_log( $output );
+			  	
 			} catch (Zend_Gdata_App_Exception $e) {
+			    
 			    $output = $e->getMessage();
+			    
+			    $this->plugin_error_log( $output );
+			    
 			}
 			
 		}
