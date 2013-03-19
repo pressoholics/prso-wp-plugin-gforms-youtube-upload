@@ -16,8 +16,9 @@
  */
 class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	
-	protected 	$data 			= array();
-	private		$selected_api 	= 'brightcove_ftp';
+	protected 	$data 					= array();
+	protected	$plugin_options_slug	= 'prso_gforms_youtube_main_options';
+	private		$selected_api 			= NULL;
 	
 	//*** PRSO PLUGIN FRAMEWORK METHODS - Edit at your own risk (go nuts if you just want to add to them) ***//
 	
@@ -127,27 +128,43 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		$shell_exec_path 	= '';
 		$command			= '';
 		$ajax_hook_slug		= '';		
+		$plugin_options		= array();
 		
-		//Cache the slug of our wp ajax hook to run our process
-		$ajax_hook_slug = 'prso_gforms_youtube_upload_init';
+		//First try and get the plugin options
+		if( isset($this->plugin_options_slug) ) {
+			$plugin_options = get_option( $this->plugin_options_slug );
+		}
 		
-		//** Set Post Vars **//
-		
-		//Set wp ajax action slug
-		$fields['action'] = $ajax_hook_slug;
-		
-		//Serialize wp attachments array
-		$fields['wp_attachment_data'] 	= maybe_serialize($wp_attachment_data);
-		
-		//Set the entry array from gravity forms
-		$fields['entry'] = urlencode( json_encode($entry) );
-		
-		
-		//Set form array from gravity forms
-		$fields['form'] = urlencode( json_encode($form) );
-		
-		//** Init curl request - note this is asynchronous **//
-		$this->init_curl( $fields );
+		if( $plugin_options !== FALSE && isset($plugin_options['api_select']) ) {
+			
+			//Set the api requested
+			$this->selected_api = esc_attr( $plugin_options['api_select'] );
+			
+			//Cache the slug of our wp ajax hook to run our process
+			$ajax_hook_slug = 'prso_gforms_youtube_upload_init';
+			
+			//** Set Post Vars **//
+			
+			//Set wp ajax action slug
+			$fields['action'] = $ajax_hook_slug;
+			
+			//Cache selected API
+			$fields['api'] = $this->selected_api;
+			
+			//Serialize wp attachments array
+			$fields['wp_attachment_data'] 	= maybe_serialize($wp_attachment_data);
+			
+			//Set the entry array from gravity forms
+			$fields['entry'] = urlencode( json_encode($entry) );
+			
+			
+			//Set form array from gravity forms
+			$fields['form'] = urlencode( json_encode($form) );
+			
+			//** Init curl request - note this is asynchronous **//
+			$this->init_curl( $fields );
+			
+		}
 		
 	}
 	
@@ -183,7 +200,10 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		ini_set('mysql.connect_timeout', 600);
 		
 		//Get post vars
-		if( isset($_POST['wp_attachment_data'], $_POST['entry'], $_POST['form']) ) {
+		if( isset($_POST['api'], $_POST['wp_attachment_data'], $_POST['entry'], $_POST['form']) ) {
+			
+			//Cache selected api
+			$this->selected_api = $_POST['api'];
 			
 			//Unserialize wp attachment data array
 			$wp_attachment_data = maybe_unserialize($_POST['wp_attachment_data']);
@@ -581,37 +601,45 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//Init vars
 		$selected_api	= NULL;
 		$result 		= FALSE;
+		$plugin_options	= array();
 		
-		//Cache api selection
-		if( isset($this->selected_api) ) {
-			$selected_api = $this->selected_api;
+		//First try and get the plugin options
+		if( isset($this->plugin_options_slug) ) {
+			$plugin_options = get_option( $this->plugin_options_slug );
 		}
 		
-		//Load instance of selected API
-		if( isset($selected_api) ) {
+		if( $plugin_options !== FALSE && isset($plugin_options['api_select']) ) {
+		
+			//Cache api selection
+			$selected_api = $plugin_options['api_select'];
 			
-			//Detect and include api
-			switch( $selected_api ) {
-				case 'youtube':
-					
-					//Include API file for current api being used
-					include_once( $this->plugin_includes . '/inc_youtube_api.php' );
-					
-					//Call YouTube API - change this based on the api required
-					$result = new PrsoGformsYoutubeApi();
-					
-					break;
-				case 'brightcove_ftp':
-					
-					//Include API file for current api being used
-					include_once( $this->plugin_includes . '/inc_brightcove_ftp.php' );
-					
-					//Call YouTube API - change this based on the api required
-					$result = new PrsoGformsBrightCoveFtp();
-					
-					break;
-				default:
-					break;
+			//Load instance of selected API
+			if( isset($selected_api) ) {
+				
+				//Detect and include api
+				switch( $selected_api ) {
+					case 'youtube':
+						
+						//Include API file for current api being used
+						include_once( $this->plugin_includes . '/inc_youtube_api.php' );
+						
+						//Call YouTube API - change this based on the api required
+						$result = new PrsoGformsYoutubeApi();
+						
+						break;
+					case 'brightcove_ftp':
+						
+						//Include API file for current api being used
+						include_once( $this->plugin_includes . '/inc_brightcove_ftp.php' );
+						
+						//Call YouTube API - change this based on the api required
+						$result = new PrsoGformsBrightCoveFtp();
+						
+						break;
+					default:
+						break;
+				}
+				
 			}
 			
 		}
@@ -667,7 +695,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		return $button;
 	}
 	
-	private function plugin_error_log( $var ) {
+	protected function plugin_error_log( $var ) {
 		
 		@ini_set('log_errors','On');
 		@ini_set('display_errors','Off');
