@@ -16,8 +16,9 @@
  */
 class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	
-	protected 	$data 			= array();
-	private		$selected_api 	= 'brightcove_ftp';
+	protected 	$data 					= array();
+	protected	$plugin_options_slug	= 'prso_gforms_youtube_main_options';
+	private		$selected_api 			= NULL;
 	
 	//*** PRSO PLUGIN FRAMEWORK METHODS - Edit at your own risk (go nuts if you just want to add to them) ***//
 	
@@ -56,7 +57,6 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//*** ADD CUSTOM ACTIONS HERE ***//
 
-		
 	}
 	
 	/**
@@ -68,6 +68,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	* @author	Ben Moody
 	*/
 	public function enqueue_scripts() {
+		
 		
 	}
 	
@@ -83,7 +84,13 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//Hook into gravity forms after submission hook to fire actions
 		//After a form has been submitted succesfully
-		add_action( 'prso_gform_pluploader_processed_uploads', array( $this, 'process_wp_attachments' ), 10, 3 );
+		//add_action( 'prso_gform_pluploader_processed_uploads', array( $this, 'process_wp_attachments' ), 10, 3 );
+		add_action( 'prso_gform_pluploader_processed_uploads', array( $this, 'background_init' ), 10, 3 );
+		
+		//Add wp ajax hook for method to init processing wp attachments
+		add_action( 'wp_ajax_nopriv_prso_gforms_youtube_upload_init', array($this, 'init_attachment_process') );
+		
+		add_action( 'wp_ajax_nopriv_prso_gforms_youtube_upload_save_data', array($this, 'save_video_data') );
 		
 		//Add custom script to gravity forms enqueue
 		add_action( 'gform_enqueue_scripts', array($this, 'gforms_enqueue_scripts'), 10, 2 );
@@ -102,7 +109,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//Filter links to attachments in gforms entry
 		add_filter( 'prso_gform_pluploader_entry_attachment_links', array($this, 'get_video_link'), 10, 3 );
-		
+			
 		//Gravity forms filter for submit button render
 		add_filter( 'gform_submit_button', array($this, 'gforms_submit_button'), 10, 2 );
 		
@@ -114,6 +121,110 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 	
 	
 	//*** CUSTOM METHODS SPECIFIC TO THIS PLUGIN ***//
+	
+	public function background_init( $wp_attachment_data, $entry, $form ) {
+		
+		//Init vars
+		$shell_exec_path 	= '';
+		$command			= '';
+		$ajax_hook_slug		= '';		
+		$plugin_options		= array();
+		
+		//First try and get the plugin options
+		if( isset($this->plugin_options_slug) ) {
+			$plugin_options = get_option( $this->plugin_options_slug );
+		}
+		
+		if( $plugin_options !== FALSE && isset($plugin_options['api_select']) ) {
+			
+			//Set the api requested
+			$this->selected_api = esc_attr( $plugin_options['api_select'] );
+			
+			//Cache the slug of our wp ajax hook to run our process
+			$ajax_hook_slug = 'prso_gforms_youtube_upload_init';
+			
+			//** Set Post Vars **//
+			
+			//Set wp ajax action slug
+			$fields['action'] = $ajax_hook_slug;
+			
+			//Cache selected API
+			$fields['api'] = $this->selected_api;
+			
+			//Serialize wp attachments array
+			$fields['wp_attachment_data'] 	= maybe_serialize($wp_attachment_data);
+			
+			//Set the entry array from gravity forms
+			$fields['entry'] = urlencode( json_encode($entry) );
+			
+			
+			//Set form array from gravity forms
+			$fields['form'] = urlencode( json_encode($form) );
+			
+			//** Init curl request - note this is asynchronous **//
+			$this->init_curl( $fields );
+			
+		} else {
+			$this->plugin_error_log( 'Main Plugin:: Can\'t access plugin options' );
+		}
+		
+	}
+	
+	private function init_curl( $post_fields ) {
+		
+		//** Init curl request - note this is asynchronous **//
+		$ch = curl_init();
+		
+		//Cache path to wp ajax script
+		$wp_ajax_url = home_url() . '/wp-admin/admin-ajax.php';
+		
+		curl_setopt($ch, CURLOPT_URL, $wp_ajax_url);
+		curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 1);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+
+		curl_exec($ch);
+		curl_close($ch);
+		
+	}
+	
+	public function init_attachment_process() {
+		
+		//Init vars
+		$wp_attachment_data = array();
+		$entry 				= array();
+		$form 				= array();
+		
+		//Try to increase php max execution time
+		ini_set( 'max_execution_time', 600 );
+		
+		//Try to increase mysql timeout
+		ini_set('mysql.connect_timeout', 600);
+		
+		//Get post vars
+		if( isset($_POST['api'], $_POST['wp_attachment_data'], $_POST['entry'], $_POST['form']) ) {
+			
+			//Cache selected api
+			$this->selected_api = $_POST['api'];
+			
+			//Unserialize wp attachment data array
+			$wp_attachment_data = maybe_unserialize($_POST['wp_attachment_data']);
+			
+			//Cache entry id and form id passed from gravity forms
+			$entry	=  urldecode( $_POST['entry'] );
+			$entry	=  json_decode( $entry, TRUE );
+			
+			//Decode form array from gravity forms
+			$form	=  urldecode( $_POST['form'] );
+			$form	=  json_decode( $form, TRUE );
+			
+			//Call method to process attachments
+			$this->process_wp_attachments( $wp_attachment_data, $entry, $form );
+			
+		}
+
+		die();
+	}
 	
 	public function process_wp_attachments( $wp_attachment_data, $entry, $form ) {
 		
@@ -132,7 +243,7 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		$wp_attachment_file_info = array();
 		
-		if( !empty($wp_attachment_data) && !empty($entry) && !empty($form) ) {
+		if( !empty($wp_attachment_data) && !empty($entry) ) {
 			
 			//Cache entry and form data from gravity forms
 			$this->data['gforms_entry'] = $entry;
@@ -152,6 +263,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 						$file_path 	= NULL;
 						$mime_type	= NULL;
 						
+						//Allow devs to hook in before getting attachment data
+						do_action( 'prso_gform_youtube_uploader_pre_get_attachment_data' );
+						
 						//Get file path for current wp attachment
 						$file_path = get_attached_file( $attachment_id );
 						
@@ -166,6 +280,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 								'file_path'			=>	$file_path
 							);
 							
+						} else {
+							$this->plugin_error_log( 'Main Plugin:: Attachment file path empty OR mime type == false' );
 						}
 						
 					}
@@ -173,8 +289,12 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 					
 				}
 				
+			} else {
+				$this->plugin_error_log( 'Main Plugin:: wp attachment data not an array' );
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Main Plugin:: wp attachment data or gforms entry data empty' );
 		}
 		
 		//Pass array of processed attachments to validation method
@@ -194,10 +314,15 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 				
 				//Overwrite wp attachment ids with video id's from api
 				//and delete the wp attachments from the server
-				$this->save_video_data( $upload_result ); 
+				//$this->save_video_data( $upload_result ); 
+				$this->background_save_data( $upload_result );
 				
+			} else {
+				$this->plugin_error_log( 'Main Plugin:: No valid videos found in attachment array' );
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Main Plugin:: Processed attachment array empty' );
 		}
 		
 		
@@ -304,16 +429,62 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		return $uploaded_files;
 	}
-
-	private function save_video_data( $upload_result ) {
+	
+	private function background_save_data( $upload_result_data ) {
 		
 		//Init vars
-		$original_wp_attachments = array();
+		$ajax_hook_slug		= '';
+		$post_data			= array();
 		
-		if( isset($this->data['attachments']) && !empty($upload_result) ) {
+		//Cache the slug of our wp ajax hook to run our process
+		$ajax_hook_slug = 'prso_gforms_youtube_upload_save_data';
+		
+		//Cache wp ajax action slug in post data
+		$postdata['action'] = $ajax_hook_slug;
+		
+		//Cache wp attachmetns arrau in post data
+		$postdata['wp_attachments'] = maybe_serialize( $this->data['attachments'] );
+		
+		//Json encode and cache uploaded video data array into post data
+		$postdata['upload_result']	= urlencode( json_encode($upload_result_data) );
+		
+		//Json encode and cache gravity forms entry array into post
+		$postdata['gforms_entry']	= urlencode( json_encode($this->data['gforms_entry']) );
+
+		//Json encode and cache gravity forms Form array into post
+		$postdata['gforms_form']	= urlencode( json_encode($this->data['gforms_form']) );
+		
+		//** Init curl request - note this is asynchronous **//
+		$this->init_curl( $postdata );
+		
+	}
+	
+	public function save_video_data() {
+		
+		//Init vars
+		$original_wp_attachments = array();	
+		
+		//Get post vars
+		$original_wp_attachments = maybe_unserialize( $_POST['wp_attachments'] );
+		
+		//Url decode json
+		$upload_result = urldecode( $_POST['upload_result'] );
+		
+		//Json decode uploads array
+		$upload_result = json_decode( $upload_result, TRUE );
+		
+		//Json decode gravity forms entry array
+		$this->data['gforms_entry'] = urldecode( $_POST['gforms_entry'] );
+		$this->data['gforms_entry']	= json_decode( $this->data['gforms_entry'], TRUE );
+		
+		//Json decode gravity forms Form array
+		$this->data['gforms_form'] 	= urldecode( $_POST['gforms_form'] );
+		$this->data['gforms_form']	= json_decode( $this->data['gforms_form'], TRUE );
+		
+		if( isset($original_wp_attachments) && !empty($upload_result) ) {
 			
 			//Cache the array of original wp attachment id's
-			$original_wp_attachments = $this->data['attachments'];
+			//$original_wp_attachments = $this->data['attachments'];
 			
 			//Loop each wp attachment in the array and replace value
 			//with one from upload results only where the array key's match
@@ -352,10 +523,15 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		$entry_id 						= NULL;
 		$results						= NULL;
 		
+		
+		
 		if( !empty($field_values) && isset($this->data['gforms_entry']['id']) ) {
 			
 			//Cache entry data provided from gravity forms
 			$entry_id = $this->data['gforms_entry']['id'];
+			
+			//Allow devs to hook before we get the gravity form table names ect
+			do_action('prso_gform_youtube_uploader_pre_update_meta');
 			
 			//Get gravity forms table names
 			$lead_details_table_name 		=  RGFormsModel::get_lead_details_table_name();
@@ -441,37 +617,45 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		//Init vars
 		$selected_api	= NULL;
 		$result 		= FALSE;
+		$plugin_options	= array();
 		
-		//Cache api selection
-		if( isset($this->selected_api) ) {
-			$selected_api = $this->selected_api;
+		//First try and get the plugin options
+		if( isset($this->plugin_options_slug) ) {
+			$plugin_options = get_option( $this->plugin_options_slug );
 		}
 		
-		//Load instance of selected API
-		if( isset($selected_api) ) {
+		if( $plugin_options !== FALSE && isset($plugin_options['api_select']) ) {
+		
+			//Cache api selection
+			$selected_api = $plugin_options['api_select'];
 			
-			//Detect and include api
-			switch( $selected_api ) {
-				case 'youtube':
-					
-					//Include API file for current api being used
-					include_once( $this->plugin_includes . '/inc_youtube_api.php' );
-					
-					//Call YouTube API - change this based on the api required
-					$result = new PrsoGformsYoutubeApi();
-					
-					break;
-				case 'brightcove_ftp':
-					
-					//Include API file for current api being used
-					include_once( $this->plugin_includes . '/inc_brightcove_ftp.php' );
-					
-					//Call YouTube API - change this based on the api required
-					$result = new PrsoGformsBrightCoveFtp();
-					
-					break;
-				default:
-					break;
+			//Load instance of selected API
+			if( isset($selected_api) ) {
+				
+				//Detect and include api
+				switch( $selected_api ) {
+					case 'youtube':
+						
+						//Include API file for current api being used
+						include_once( $this->plugin_includes . '/inc_youtube_api.php' );
+						
+						//Call YouTube API - change this based on the api required
+						$result = new PrsoGformsYoutubeApi();
+						
+						break;
+					case 'brightcove_ftp':
+						
+						//Include API file for current api being used
+						include_once( $this->plugin_includes . '/inc_brightcove_ftp.php' );
+						
+						//Call YouTube API - change this based on the api required
+						$result = new PrsoGformsBrightCoveFtp();
+						
+						break;
+					default:
+						break;
+				}
+				
 			}
 			
 		}
@@ -525,5 +709,19 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		$button = $button . $loading_html;
 		
 		return $button;
+	}
+	
+	protected function plugin_error_log( $var ) {
+		
+		@ini_set('log_errors','On');
+		@ini_set('display_errors','Off');
+		@ini_set('error_log', $this->plugin_root . '/php_error.log');
+		
+		if( !is_string($var) ) {
+			error_log( print_r($var, true) );
+		} else {
+			error_log( $var );
+		}
+		
 	}
 }
