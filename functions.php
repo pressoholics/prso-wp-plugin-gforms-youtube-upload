@@ -164,6 +164,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 			//** Init curl request - note this is asynchronous **//
 			$this->init_curl( $fields );
 			
+		} else {
+			$this->plugin_error_log( 'Main Plugin:: Can\'t access plugin options' );
 		}
 		
 	}
@@ -243,8 +245,6 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		if( !empty($wp_attachment_data) && !empty($entry) ) {
 			
-			
-			
 			//Cache entry and form data from gravity forms
 			$this->data['gforms_entry'] = $entry;
 			$this->data['gforms_form']	= $form;
@@ -263,6 +263,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 						$file_path 	= NULL;
 						$mime_type	= NULL;
 						
+						//Allow devs to hook in before getting attachment data
+						do_action( 'prso_gform_youtube_uploader_pre_get_attachment_data' );
+						
 						//Get file path for current wp attachment
 						$file_path = get_attached_file( $attachment_id );
 						
@@ -277,6 +280,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 								'file_path'			=>	$file_path
 							);
 							
+						} else {
+							$this->plugin_error_log( 'Main Plugin:: Attachment file path empty OR mime type == false' );
 						}
 						
 					}
@@ -284,8 +289,12 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 					
 				}
 				
+			} else {
+				$this->plugin_error_log( 'Main Plugin:: wp attachment data not an array' );
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Main Plugin:: wp attachment data or gforms entry data empty' );
 		}
 		
 		//Pass array of processed attachments to validation method
@@ -308,8 +317,12 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 				//$this->save_video_data( $upload_result ); 
 				$this->background_save_data( $upload_result );
 				
+			} else {
+				$this->plugin_error_log( 'Main Plugin:: No valid videos found in attachment array' );
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Main Plugin:: Processed attachment array empty' );
 		}
 		
 		
@@ -516,6 +529,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 			
 			//Cache entry data provided from gravity forms
 			$entry_id = $this->data['gforms_entry']['id'];
+			
+			//Allow devs to hook before we get the gravity form table names ect
+			do_action('prso_gform_youtube_uploader_pre_update_meta');
 			
 			//Get gravity forms table names
 			$lead_details_table_name 		=  RGFormsModel::get_lead_details_table_name();
