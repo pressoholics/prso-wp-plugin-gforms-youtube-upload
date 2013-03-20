@@ -633,7 +633,8 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
 	public function validate( $data = array() ) {
 		
 		//Init vars
-		$validate = $this->validate_fields; //An array of fields to validate
+		$validate 	= $this->validate_fields; //An array of fields to validate
+		$args		= array();
 		
 		//Set options args to override validation messages
 		if( isset($this->validation_success_message, $this->validation_fail_message) ) {
