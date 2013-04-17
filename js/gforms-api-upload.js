@@ -3,7 +3,7 @@
   $(document).ready(function(){
 	  
 	  //Pluing's js object storing any vars from php
-	  console.log( prso_gforms_api_upload_vars );
+	  //console.log( prso_gforms_api_upload_vars );
 	  
 	  //Cache current form's id
 	  var formId = prso_gforms_api_upload_vars.gform_id;
