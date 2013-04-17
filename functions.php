@@ -270,7 +270,8 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 						$file_path = get_attached_file( $attachment_id );
 						
 						//Get mime type for current wp attachment
-						$mime_type = get_post_mime_type( $attachment_id );
+						//$mime_type = get_post_mime_type( $attachment_id );
+						$mime_type = mime_content_type( $file_path );
 						
 						if( !empty($file_path) && $mime_type !== FALSE ) {
 						
@@ -299,7 +300,9 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 		
 		//Pass array of processed attachments to validation method
 		if( !empty($wp_attachment_file_info) ) {
-		
+			
+			//$this->plugin_error_log( $wp_attachment_file_info );
+			
 			$validated_attachments = $this->validate_video_files( $wp_attachment_file_info );
 			
 			//Check that there are some valid video attachments still in array
@@ -346,20 +349,26 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 			foreach( $wp_attachment_file_info as $field_id => $attachments ) {
 			
 				foreach( $attachments as $key => $attachment_data ) {
-				
-					if( isset($attachment_data['mime_type']) ) {
+					
+					if( isset($attachment_data['mime_type']) && !empty($attachment_data['mime_type']) ) {
 					
 						if( !in_array($attachment_data['mime_type'], $video_mimes) ) {
 							//Unset this attachment from array
 							unset( $wp_attachment_file_info[$field_id][$key] );
+						} else {
+							//$this->plugin_error_log( 'Validate Video Files:: File validated succesfully' );
 						}
 						
+					} else {
+						$this->plugin_error_log( 'Validate Video Files:: Attachment mime type not set' );
 					}
 					
 				}
 				
 			}
 			
+		} else {
+			$this->plugin_error_log( 'Validate Video Files:: Attachment info array empty' );
 		}
 		
 		return $wp_attachment_file_info;
