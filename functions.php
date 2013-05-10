@@ -271,7 +271,11 @@ class PrsoGformsYoutubeFunctions extends PrsoGformsYoutubeAppController {
 						
 						//Get mime type for current wp attachment
 						//$mime_type = get_post_mime_type( $attachment_id );
-						$mime_type = mime_content_type( $file_path );
+						//$mime_type = mime_content_type( $file_path );
+						
+						$finfo 		= finfo_open(FILEINFO_MIME_TYPE);
+						$mime_type	= finfo_file($finfo, $file_path);
+						finfo_close($finfo);
 						
 						if( !empty($file_path) && $mime_type !== FALSE ) {
 						
