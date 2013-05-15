@@ -205,6 +205,14 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
  			)
  		),
  		array(
+ 			'section'	=>	'general_options',
+ 			'id'		=>	'confirmation_email',
+ 			'title'		=>	'Confirmation Email',
+ 			'desc'		=>	'Email you wish api to send confirmation to.',
+ 			'type'		=>	'text',
+ 			'default'	=>	''
+ 		),
+ 		array(
  			'section'	=>	'youtube_account_options',
  			'id'		=>	'youtube_api_key_text',
  			'title'		=>	'YouTube API Key',
@@ -301,6 +309,12 @@ class PrsoGformsYoutubeAdminView extends PrsoGformsYoutubeFunctions {
  			'nice_name'	=>	'Service API',
  			'type'		=>	'text',
  			'message'	=>	'Please select a Serivce API',
+ 			'empty'		=>	FALSE
+ 		),
+ 		'confirmation_email'	=>	array(
+ 			'nice_name'	=>	'Confirmation Email',
+ 			'type'		=>	'email',
+ 			'message'	=>	'Please provide a confirmation email address',
  			'empty'		=>	FALSE
  		),
  		'youtube_api_key_text'	=>	array(

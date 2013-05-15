@@ -154,6 +154,7 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 		$type					= 'VIDEO_FULL';
 		$encode_to				= 'MP4';
 		$encode_multiple		= 'true';
+		$conf_email				= NULL;
 		
 		//Cache local save path for manifest
 		$wp_wpload_dir_info = wp_upload_dir();
@@ -161,6 +162,14 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 		if( isset($wp_wpload_dir_info['basedir'], $this->manifext_filename) ) {
 			$save_path = $wp_wpload_dir_info['basedir'] . '/' . $this->manifext_filename . '.xml';
 		}
+		
+		//Cache confirmation email address
+		$conf_email = get_option( 'prso_gforms_youtube_main_options', NULL );
+		if( isset($conf_email['confirmation_email']) ) {
+			$conf_email = $conf_email['confirmation_email'];
+		}
+		
+		$this->plugin_error_log( 'Email: ' . $conf_email );
 		
 		//Start xml write process
 		if( !empty($save_path) ) {
@@ -181,7 +190,7 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 			$notify_node	= $pub_manifest->appendChild( $notify );
 			
 			//Add callback attributes
-			$notify_node->setAttribute( 'email', 'ben@benjaminmoody.com' );
+			$notify_node->setAttribute( 'email', $conf_email );
 			
 			
 			//Create callback element
@@ -283,10 +292,6 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 			//Check for error
 			if( $conn_id !== FALSE ) {
 				
-				$this->plugin_error_log( $conn_id );
-				$this->plugin_error_log( $this->username );
-				$this->plugin_error_log( $this->password );
-				
 				//Send access params
 				$login_result = ftp_login( $conn_id, $this->username, $this->password );
 				
@@ -328,6 +333,9 @@ class PrsoGformsBrightCoveFtp extends PrsoGformsYoutubeFunctions {
 					//This will ensure the file remains in wordpress as a backup
 					if( $result === FALSE ) {
 						unset( $validated_attachments[$field_id][$key] );
+						$this->plugin_error_log( 'Upload Failed:: ' . $upload_data['file_path'] );
+					} else {
+						$this->plugin_error_log( 'File Uploaded:: ' . $upload_data['file_path'] );
 					}
 					
 				}
